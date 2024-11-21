@@ -5,7 +5,7 @@ import { LogOut } from "lucide-react";
 import { User } from "@prisma/client";
 
 // Global import
-import { signOut } from "next-auth/react";
+import { useClerk } from "@clerk/nextjs";
 
 // Local imports
 import {
@@ -31,6 +31,8 @@ interface UserMenuProps {
 
 
 export default function UserMenu({currentUser}: UserMenuProps) {
+    const { signOut } = useClerk();
+    
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -63,7 +65,7 @@ export default function UserMenu({currentUser}: UserMenuProps) {
                         Manage Account
                     </DropdownMenuItem>
 
-                    <DropdownMenuItem onClick={() => { signOut() }}>
+                    <DropdownMenuItem onClick={() => signOut()}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Log out
                     <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>

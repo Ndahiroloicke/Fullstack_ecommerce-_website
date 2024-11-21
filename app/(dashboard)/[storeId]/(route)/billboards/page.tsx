@@ -6,16 +6,19 @@ import prismadb from "@/lib/prismadb";
 import { BillboardColumn } from "./components/columns"
 import { BillboardClient } from "./components/client";
 
-const BillboardsPage = async ({
-  params
-}: {
-  params: { storeId: string }
-}) => {
+type Props = {
+  params: Promise<{
+    storeId: string;
+  }>;
+};
+
+const BillboardsPage = async ({ params }: Props) => {
+  const resolvedParams = await params;
 
   // find all the billboards and show them in the datatable we create
   const billboards = await prismadb.billboard.findMany({
     where: {
-      storeId: params.storeId
+      storeId: resolvedParams.storeId  // Using resolvedParams instead of params directly
     },
     orderBy: {
       createdAt: 'desc'

@@ -1,36 +1,22 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcrypt";
+import { clerkClient } from "@clerk/nextjs/server";
 
-import prisma from "@/lib/prismadb";
-
-// we no longer have to use request methods in a switch method 
-// we can create out custom POST request method
 export async function POST(
   request: Request,
 ) {
-  // from the body , we retrieve the provided name, email and hashedpassword
   try {
     const body = await request.json();
-    const {
-      email,
-      name,
+    const { email, name, password } = body;
+
+    const user = await (await clerkClient()).users.createUser({
+      emailAddress: email,
       password,
-    } = body;
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Now insert into database table user as a new user and pass the retrieved crendentials
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        hashedPassword,
-      }
+      firstName: name,
     });
 
     return NextResponse.json(user);
   } catch (error) {
-      console.log('[REGISTER_POST]', error);
-      return new NextResponse("Internal error", { status: 500 });
+    console.log('[REGISTER_POST]', error);
+    return new NextResponse("Internal error", { status: 500 });
   }  
 } 

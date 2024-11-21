@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { auth } from "@clerk/nextjs";
 
 //Local imports
 import Navbar from '@/components/navbar'
@@ -14,10 +15,11 @@ export default async function DashboardLayout({
 }) {
     //get current User details
     const currentUser = await getCurrentUser();
+    const { userId } = await auth();
 
     //We reconfirm
     //If currentUser not exists then we are not in session , redirect to signIn
-    if (!currentUser) {
+    if (!currentUser || !userId) {
         redirect('/signIn');
     }
 
@@ -26,7 +28,7 @@ export default async function DashboardLayout({
     const store = await prisma.store.findFirst({
         where: {
             id: params.storeId,
-            userId: currentUser.id,
+            userId: userId,
         }
     });
 

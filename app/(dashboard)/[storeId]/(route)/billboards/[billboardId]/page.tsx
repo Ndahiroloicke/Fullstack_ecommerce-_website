@@ -2,16 +2,19 @@ import prismadb from "@/lib/prismadb";
 
 import { BillboardForm } from "./components/billboardForm";
 
-const BillboardPage = async ({
-  params
-}: {
-  params: { billboardId: string }
-}) => {
+type Props = {
+  params: Promise<{
+    billboardId: string;
+    storeId: string;
+  }>;
+};
 
-  // To find if billboards already exits or not , if not then we create new billboard
+const BillboardPage = async ({ params }: Props) => {
+  const resolvedParams = await params;
+  
   const billboard = await prismadb.billboard.findUnique({
     where: {
-      id: params.billboardId
+      id: resolvedParams.billboardId
     }
   });
 

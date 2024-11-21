@@ -1,46 +1,29 @@
-import { getServerSession } from "next-auth/next"
-
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prismadb";
-
-// from the session we get the authoptions and also the provider
-export async function getSession() {
-  return await getServerSession(authOptions)
-}
-// it is not a api call , it is direct communication with the database through 
-// our server component
 
 export default async function getCurrentUser() {
   try {
-    // intitiate session
-    const session = await getSession();
+    // Get the authenticated session from Clerk
+    const { userId } = await auth();
 
-    // To check if the session exists or not?
-    if (!session?.user?.email) {
+    // Check if user is authenticated
+    if (!userId) {
       return null;
     }
 
-    // to find the current user by the session logged in user's emailid 
-    const currentUser = await prisma.user.findUnique({
+    // Get user from database
+    const user = await prisma.user.findUnique({
       where: {
-        email: session.user.email as string,
+        id: userId
       }
     });
 
-    // check if we got the data of currentuser or not , if not return null
-    if (!currentUser) {
+    if (!user) {
       return null;
     }
 
-    // if exists then return the current user data
-    return {
-      ...currentUser,
-      // createdAt: currentUser.createdAt.toISOString(),
-      // updatedAt: currentUser.updatedAt.toISOString(),
-      // emailVerified: 
-      //   currentUser.emailVerified?.toISOString() || null,
-    };
-  } catch (error: any) {
+    return user;
+  } catch (error) {
     return null;
   }
 }

@@ -1,13 +1,11 @@
 "use client";
 
-import { SessionProvider } from "next-auth/react";
+import { ClerkProvider } from "@clerk/nextjs";
 
 export interface AuthContextProps {
   children: React.ReactNode;
 }
 
-export default function AuthContextProvider({ 
-  children
-}: AuthContextProps) {
-  return <SessionProvider>{children}</SessionProvider>;
+export default function AuthContextProvider({ children }: AuthContextProps) {
+  return <ClerkProvider>{children}</ClerkProvider>;
 }
