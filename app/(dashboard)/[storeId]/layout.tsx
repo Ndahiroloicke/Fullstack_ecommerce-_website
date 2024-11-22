@@ -35,7 +35,7 @@ export default async function DashboardLayout({
     // if somehow store not exits in combination to currently logged in user
     // if store does not exist redirect to create a store
     if (!store) {
-        redirect('/');
+        redirect('/stores');
     };
 
     return (

@@ -1,7 +1,7 @@
 'use client'
 
 import { FcGoogle } from "react-icons/fc";
-import { useSignIn, useSignUp } from "@clerk/nextjs";
+import { useSignIn, useSignUp, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { useCallback, useState, useMemo, useEffect } from 'react';
@@ -23,20 +23,26 @@ const registerSchema = z.object({
     email: z.string().email(),
     password: z.string().min(4),
     variant: z.literal("REGISTER"),
+    verificationCode: z.string().optional(),
 });
 
 const loginSchema = z.object({
     email: z.string().email(),
     password: z.string().min(4),
     variant: z.literal("LOGIN"),
+    verificationCode: z.string().optional(),
 });
 
 export default function SignInPage() {
     const { signIn } = useSignIn();
     const { signUp } = useSignUp();
+    const { signOut } = useClerk();
     const router = useRouter();
     const [variant, setVariant] = useState<Variant>('LOGIN');
     const [isLoading, setIsLoading] = useState(false);
+    const [isVerification, setIsVerification] = useState(false);
+    const [signUpId, setSignUpId] = useState<string | null>(null);
+    const [verificationCode, setVerificationCode] = useState("");
 
     const formSchema = useMemo(() => 
         z.discriminatedUnion("variant", [registerSchema, loginSchema])
@@ -56,6 +62,27 @@ export default function SignInPage() {
         form.setValue("variant", variant);
     }, [variant, form]);
 
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('verificationCode');
+        
+        if (code && signUp) {
+            handleVerification(code);
+        }
+    }, [signUp]);
+
+    useEffect(() => {
+        const checkAndSignOut = async () => {
+            try {
+                await signOut();
+            } catch (error) {
+                console.error('Error during signout:', error);
+            }
+        };
+        
+        checkAndSignOut();
+    }, [signOut]);
+
     const toggleVariant = useCallback(() => {
         setVariant(current => current === 'LOGIN' ? 'REGISTER' : 'LOGIN');
     }, []);
@@ -68,49 +95,75 @@ export default function SignInPage() {
                 const result = await signIn?.create({
                     identifier: data.email,
                     password: data.password,
-                }) as SignInResource;
+                });
 
                 if (result?.status === "complete") {
-                    router.push('/');
+                    // First redirect to a loading page
+                    router.replace('/auth-callback');
                     toast.success('Logged in successfully!');
-                } else {
-                    // Handle any necessary verification steps
-                    const firstFactor = result?.firstFactorVerification;
-                    if (firstFactor?.status === "unverified") {
-                        toast.error('Please verify your email');
-                    }
                 }
             }
 
             if (variant === 'REGISTER') {
-                if (!signUp) return;
+                if (!signUp) {
+                    console.log('SignUp object is not available');
+                    return;
+                }
                 
                 try {
-                    const result = await signUp.create({
+                    // Validate input
+                    if (!data.email || !data.password) {
+                        toast.error('Please fill in all required fields');
+                        return;
+                    }
+
+                    console.log('Starting registration process...');
+
+                    // Step 1: Create the signup
+                    const signUpAttempt = await signUp.create({
                         emailAddress: data.email,
-                        password: data.password,
-                        firstName: (data as z.infer<typeof registerSchema>).name
+                        password: data.password
                     });
 
-                    if (result.status === "complete") {
+                    console.log('Initial signup response:', signUpAttempt.status);
+
+                    // Step 2: Prepare email verification
+                    if (signUpAttempt.status === "missing_requirements" && 
+                        signUpAttempt.unverifiedFields.includes("email_address")) {
+                        
+                        await signUpAttempt.prepareEmailAddressVerification();
+                        setSignUpId(signUpAttempt.id ?? null);
+                        setIsVerification(true);
+                        toast.success('Please check your email for a verification code');
+                        return;
+                    }
+
+                    // If we somehow get here without needing verification
+                    if (signUpAttempt.status === "complete") {
                         toast.success('Account created successfully!');
                         router.push('/');
-                    } else {
-                        // Fixed type checking for verification status
-                        const verifyEmail = result.status === "missing_requirements" && 
-                                         result.missingFields.includes("email_address");
-                        
-                        if (verifyEmail) {
-                            await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-                            toast.success('Please check your email for verification code');
-                        }
                     }
+
                 } catch (err: any) {
-                    if (err.errors?.[0]?.message) {
+                    console.error('Registration error:', {
+                        status: err.status,
+                        message: err.errors?.[0]?.message || 'Unknown error',
+                        code: err.errors?.[0]?.code,
+                        fullError: err
+                    });
+                    
+                    // Handle specific error cases
+                    if (err.errors?.[0]?.code === "form_password_weak") {
+                        toast.error('Password must be at least 8 characters long and include numbers and letters');
+                    } else if (err.errors?.[0]?.code === "form_identifier_exists") {
+                        toast.error('An account with this email already exists');
+                    } else if (err.errors?.[0]?.message) {
                         toast.error(err.errors[0].message);
                     } else {
                         toast.error('Error creating account');
                     }
+                } finally {
+                    setIsLoading(false);
                 }
             }
         } catch (error: any) {
@@ -129,7 +182,7 @@ export default function SignInPage() {
             await signIn?.authenticateWithRedirect({
                 strategy: "oauth_google",
                 redirectUrl: "/sso-callback",
-                redirectUrlComplete: "/"
+                redirectUrlComplete: "/dashboard"
             });
         } catch (error) {
             toast.error('Error signing in with Google');
@@ -161,7 +214,7 @@ export default function SignInPage() {
                         <FormItem>
                             <FormLabel>Email</FormLabel>
                             <FormControl>
-                                <Input {...field} type="email" placeholder="johndoe@email.com" />
+                                <Input type="email" placeholder="johndoe@email.com" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -192,54 +245,131 @@ export default function SignInPage() {
         </Form>
     ), [form, variant, isLoading, onSubmit]);
 
+    const handleVerification = async (code: string) => {
+        try {
+            setIsLoading(true);
+            
+            // Remove any existing session first
+            await signOut();
+            
+            const signUpAttempt = await signUp?.attemptEmailAddressVerification({
+                code,
+            });
+
+            if (signUpAttempt?.status === "complete") {
+                toast.success("Email verified successfully!");
+                
+                // Add a small delay before sign in attempt
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const signInAttempt = await signIn?.create({
+                    identifier: signUpAttempt.emailAddress!,
+                    password: form.getValues('password'),
+                });
+
+                if (signInAttempt?.status === "complete") {
+                    router.replace('/auth-callback');
+                }
+            } else {
+                toast.error("Verification failed. Please try again.");
+            }
+        } catch (err: any) {
+            console.error('Verification error:', err);
+            toast.error(err.errors?.[0]?.message || "Verification failed");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="flex justify-center items-center h-full">
             <Card className="shadow-md">
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-2xl">
-                        {variant === 'LOGIN' ? 'Sign In!' : 'Sign Up! Create an account'}
+                        {isVerification 
+                            ? 'Verify Your Email' 
+                            : variant === 'LOGIN' 
+                                ? 'Sign In!' 
+                                : 'Sign Up!'}
                     </CardTitle>
                     <CardDescription>
-                        {variant === 'LOGIN' 
-                            ? 'Enter your credentials to Login into your account'
-                            : 'Enter your email below to create your account'
-                        }
+                        {isVerification 
+                            ? 'Enter the verification code sent to your email'
+                            : variant === 'LOGIN'
+                                ? 'Enter your credentials to Login'
+                                : 'Enter your details to create an account'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4 py-2 pb-4">
-                        {formContent}
-                    </div>
-                </CardContent>
-                <CardFooter className="flex flex-col">
-                    <div className="relative pb-2">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-muted-foreground" />
+                    {isVerification ? (
+                        // Verification Form
+                        <Form {...form}>
+                            <form className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="verificationCode"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Verification Code</FormLabel>
+                                            <FormControl>
+                                                <Input 
+                                                    {...field}
+                                                    value={verificationCode}
+                                                    onChange={(e) => setVerificationCode(e.target.value)}
+                                                    placeholder="Enter verification code"
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <Button 
+                                    className="w-full" 
+                                    onClick={() => handleVerification(verificationCode)}
+                                    disabled={isLoading}
+                                >
+                                    Verify Email
+                                </Button>
+                            </form>
+                        </Form>
+                    ) : (
+                        // Regular Sign In/Up Form
+                        <div className="space-y-4 py-2 pb-4">
+                            {formContent}
                         </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-background px-2 text-muted-foreground">
-                                Or continue with
+                    )}
+                </CardContent>
+                {!isVerification && (
+                    <CardFooter>
+                        <div className="relative pb-2">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-muted-foreground" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-background px-2 text-muted-foreground">
+                                    Or continue with
+                                </span>
+                            </div>
+                        </div>
+                        <Button 
+                            className="w-full flex gap-3" 
+                            onClick={signInWithGoogle}
+                        >
+                            <FcGoogle size={18} /> Continue with google
+                        </Button>
+                        <div className="mt-6 px-2 flex gap-2 justify-center text-sm text-gray-500">
+                            <span>
+                                {variant === 'LOGIN' ? 'No Account?' : 'Already have an account'}
+                            </span>
+                            <span 
+                                className="underline cursor-pointer text-blue-900" 
+                                onClick={toggleVariant}
+                            >
+                                {variant === 'LOGIN' ? 'Create an Account' : 'Log In'}
                             </span>
                         </div>
-                    </div>
-                    <Button 
-                        className="w-full flex gap-3" 
-                        onClick={signInWithGoogle}
-                    >
-                        <FcGoogle size={18} /> Continue with google
-                    </Button>
-                    <div className="mt-6 px-2 flex gap-2 justify-center text-sm text-gray-500">
-                        <span>
-                            {variant === 'LOGIN' ? 'No Account?' : 'Already have an account'}
-                        </span>
-                        <span 
-                            className="underline cursor-pointer text-blue-900" 
-                            onClick={toggleVariant}
-                        >
-                            {variant === 'LOGIN' ? 'Create an Account' : 'Log In'}
-                        </span>
-                    </div>
-                </CardFooter>
+                    </CardFooter>
+                )}
             </Card>
         </div>
     );
