@@ -4,8 +4,7 @@ export default authMiddleware({
   publicRoutes: [
     "/",
     "/signin",
-    "/signup",
-    "/auth-callback"
+    "/signup"
   ],
   ignoredRoutes: [
     "/api/webhook"

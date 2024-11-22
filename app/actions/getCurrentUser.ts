@@ -1,40 +1,21 @@
-import { currentUser } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs";
 import prisma from "@/lib/prismadb";
 
 export default async function getCurrentUser() {
   try {
-    const user = await currentUser();
+    const { userId } = await auth();
 
-    if (!user?.id) {
+    if (!userId) {
       return null;
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        stores: {
-          select: {
-            id: true,
-          },
-          take: 1,
-          orderBy: {
-            createdAt: 'desc'
-          }
-        }
-      },
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId
+      }
     });
 
-    if (!dbUser) {
-      return null;
-    }
-
-    return {
-      ...dbUser,
-      activeStoreId: dbUser.stores[0]?.id || null
-    };
+    return user;
   } catch (error) {
     return null;
   }

@@ -13,36 +13,43 @@ export default async function DashboardLayout({
     children: React.ReactNode
     params: { storeId: string }
 }) {
-    //get current User details
-    const currentUser = await getCurrentUser();
-    const { userId } = await auth();
+    console.log("Starting DashboardLayout");
+    
+    try {
+        //get current User details
+        const currentUser = await getCurrentUser();
+        console.log("CurrentUser:", currentUser);
+        
+        const { userId } = await auth();
+        console.log("UserId:", userId);
 
-    //We reconfirm
-    //If currentUser not exists then we are not in session , redirect to signIn
-    if (!currentUser || !userId) {
-        redirect('/signIn');
-    }
-
-    // basically from root we get redirected to here means inside dashboard with a store id
-    // get the first Store using params storeId and currentUser id
-    const store = await prisma.store.findFirst({
-        where: {
-            id: params.storeId,
-            userId: userId,
+        if (!currentUser || !userId) {
+            console.log("No user found, redirecting to signin");
+            redirect('/signIn');
         }
-    });
 
-    // if somehow store not exits in combination to currently logged in user
-    // if store does not exist redirect to create a store
-    if (!store) {
-        redirect('/stores');
-    };
+        const store = await prisma.store.findFirst({
+            where: {
+                id: params.storeId,
+                userId: userId,
+            }
+        });
+        console.log("Store found:", store);
 
-    return (
-        <>
-            <Navbar currentUser={currentUser}/>
-            {children}
-        </>
-    );
+        if (!store) {
+            console.log("No store found, redirecting to stores");
+            redirect('/stores');
+        }
+
+        return (
+            <>
+                <Navbar currentUser={currentUser}/>
+                {children}
+            </>
+        );
+    } catch (error) {
+        console.error("Error in DashboardLayout:", error);
+        throw error;
+    }
 };
 //1:52
