@@ -9,6 +9,8 @@ import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { SignInResource } from '@clerk/types';
+import { currentUser } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -33,7 +35,7 @@ const loginSchema = z.object({
     verificationCode: z.string().optional(),
 });
 
-export default function SignInPage() {
+export default async function SignInPage() {
     const { signIn } = useSignIn();
     const { signUp } = useSignUp();
     const { signOut } = useClerk();
@@ -280,6 +282,13 @@ export default function SignInPage() {
             setIsLoading(false);
         }
     };
+
+    const user = await currentUser();
+
+    // If user is already logged in, redirect to their first store or stores page
+    if (user) {
+        return redirect('/stores');
+    }
 
     return (
         <div className="flex justify-center items-center h-full">

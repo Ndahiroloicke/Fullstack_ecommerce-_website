@@ -1,6 +1,7 @@
 // Global imports
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { ClerkProvider } from '@clerk/nextjs'
 
 // local imports
 import './globals.css'
@@ -22,17 +23,18 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <AuthContextProvider><html lang="en">
-            <body className={inter.className}>
-                
-                <ClientOnly>
-                    <ToasterProvider />
-                    <ModalProvider />
-                    {children}
-                </ClientOnly>
-            
-            </body>
-            </html >
-        </AuthContextProvider>
+        <ClerkProvider>
+            <AuthContextProvider>
+                <html lang="en">
+                    <body className={inter.className}>
+                        <ClientOnly>
+                            <ToasterProvider />
+                            <ModalProvider />
+                            {children}
+                        </ClientOnly>
+                    </body>
+                </html>
+            </AuthContextProvider>
+        </ClerkProvider>
     )
 }

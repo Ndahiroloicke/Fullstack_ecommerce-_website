@@ -8,12 +8,15 @@ export default authMiddleware({
   ],
   ignoredRoutes: [
     "/api/webhook"
-  ]
+  ],
+  afterAuth(auth, req) {
+    // Handle after auth logic here if needed
+  }
 });
 
 export const config = {
   matcher: [
-    '/((?!.+\\.[\\w]+$|_next).*)',
+    '/((?!.*\\..*|_next).*)',
     '/',
     '/(api|trpc)(.*)'
   ],
