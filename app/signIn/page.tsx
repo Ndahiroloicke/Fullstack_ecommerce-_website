@@ -202,7 +202,7 @@ export default async function SignInPage() {
                             <FormItem>
                                 <FormLabel>Name</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="E-commerce" {...field} />
+                                    <Input placeholder="Username" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
