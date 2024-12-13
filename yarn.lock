@@ -58,7 +58,7 @@
     snakecase-keys "3.2.1"
     tslib "2.4.1"
 
-"@clerk/nextjs@^4.29.0":
+"@clerk/nextjs@^4.31.6":
   version "4.31.6"
   resolved "https://registry.npmjs.org/@clerk/nextjs/-/nextjs-4.31.6.tgz"
   integrity sha512-rGZ687oHrMzWu2zA5HXHVdCp31C7Ltb+pM0Sc6CgJ7KfURbK8GsG2w/Yw2PhntuKoya4y8h03uaXdgfCxGOzMQ==

@@ -1,31 +1,39 @@
-import { headers } from 'next/headers';
 import { auth } from "@clerk/nextjs";
+import prisma from "@/lib/prismadb";
 import { redirect } from "next/navigation";
 
 interface DashboardPageProps {
     params: { storeId: string }
 }
 
-const DashboardPage = async ({ 
-    params 
-}: DashboardPageProps) => {
-    // Initialize headers first
-    headers();
-    
+const DashboardPage: React.FC<DashboardPageProps> = async ({ params }) => {
     try {
         const { userId } = await auth();
 
         if (!userId) {
-            return redirect('/signin');
+            return redirect('/signIn');
+        }
+
+        const store = await prisma.store.findFirst({
+            where: {
+                id: params.storeId
+            }
+        });
+
+        if (!store) {
+            return <div>Store not found.</div>;
         }
 
         return (
             <div>
-                {/* Your JSX */}
+                <h1>Active Store: {store.name}</h1>
+                {/* Add more dashboard content here as needed */}
             </div>
         );
+
     } catch (error) {
-        return redirect('/signin');
+        console.error('Authentication error:', error);
+        return redirect('/signIn');
     }
 }
 
